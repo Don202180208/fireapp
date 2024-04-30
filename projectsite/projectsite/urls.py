@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.urls import path
-from fire.views import HomePageView, ChartView, PieCountbySeverity
+from fire.views import HomePageView, ChartView, PieCountbySeverity, LineCountbyMonth
 
 urlpatterns = [
     path("admin/", admin.site.urls),

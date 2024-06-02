@@ -1,11 +1,11 @@
 from django.shortcuts import render
 from django.views.generic.list import ListView
-from fire.models import Locations, Incident, FireStation
+from fire.models import Locations, Incident, FireStation, WeatherConditions
 from django.db import connection
 from django.http import JsonResponse
-from django.db.models.functions import ExtractMonth
-from django.db.models import Count
-from datetime import datetime
+from django.db.models.functions import ExtractMonth, ExtractDay, ExtractHour
+from django.db.models import Count, F
+from datetime import datetime, timedelta
 import json
 
 
@@ -25,19 +25,8 @@ class ChartView(ListView):
         pass
 
 def PieCountbySeverity(request):
-    query = '''
-    SELECT severity_level, COUNT(*) as count
-    FROM fire_incident
-    GROUP BY severity_level
-    '''
-    data = {}
-    with connection.cursor() as cursor:
-        cursor.execute(query)
-        rows = cursor.fetchall()
-        if rows:
-            # Construct the dictionary with severity level as keys and count as values
-            data = {severity: count for severity, count in rows}
-    return JsonResponse(data)
+    data = Incident.objects.values('severity_level').annotate(count=Count('id')).order_by('severity_level')
+    return JsonResponse(list(data), safe=False)
 
 def LineCountbyMonth(request):
     current_year = datetime.now().year
@@ -45,12 +34,10 @@ def LineCountbyMonth(request):
     incidents_per_month = Incident.objects.filter(date_time__year=current_year) \
         .values_list('date_time', flat=True)
     
-    # Counting the number of incidents per month
     for date_time in incidents_per_month:
         month = date_time.month
         result[month] += 1
     
-    # If you want to convert month numbers to month names, you can use a dictionary mapping
     month_names = {
         1: 'Jan', 2: 'Feb', 3: 'Mar', 4: 'Apr', 5: 'May', 6: 'Jun',
         7: 'Jul', 8: 'Aug', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dec'
@@ -96,24 +83,18 @@ def MultilineIncidentTop3Country(request):
         cursor.execute(query)
         rows = cursor.fetchall()
     
-    # Initialize a dictionary to store the result
     result = {}
-    # Initialize a set of months from January to December
     months = set(str(i).zfill(2) for i in range(1, 13))
     
-    # Loop through the query results
     for row in rows:
         country = row[0]
         month = row[1]
         total_incidents = row[2]
-        # If the country is not in the result dictionary, initialize it with all months set to zero
         if country not in result:
             result[country] = {month: 0 for month in months}
-        # Update the incident count for the corresponding month
         result[country][month] = total_incidents
-    # Ensure there are always 3 countries in the result
+    
     while len(result) < 3:
-        # Placeholder name for missing countries
         missing_country = f"Country {len(result) + 1}"
         result[missing_country] = {month: 0 for month in months}
     for country in result:
@@ -137,13 +118,12 @@ def multipleBarbySeverity(request):
     result = {}
     months = set(str(i).zfill(2) for i in range(1, 13))
     for row in rows:
-        level = str(row[0])  # Ensure the severity level is a string
+        level = str(row[0])
         month = row[1]
         total_incidents = row[2]
         if level not in result:
             result[level] = {month: 0 for month in months}
         result[level][month] = total_incidents
-    # Sort months within each severity level
     for level in result:
         result[level] = dict(sorted(result[level].items()))
     return JsonResponse(result)
@@ -154,8 +134,31 @@ def map_station(request):
         fs['latitude'] = float(fs['latitude'])
         fs['longitude'] = float(fs['longitude'])
     fireStations_list = list(fireStations)
+
     context = {
         'fireStations': fireStations_list,
     }
     return render(request, 'map_station.html', context)
 
+    
+def bar_chart_incidents_by_day(request):
+    data = Incident.objects.annotate(day_of_week=ExtractDay('date_time')).values('day_of_week').annotate(count=Count('id')).order_by('day_of_week')
+    return JsonResponse(list(data), safe=False)
+
+def doughnut_chart_incidents_by_type(request):
+    data = Incident.objects.values('severity_level').annotate(count=Count('id')).order_by('severity_level')
+    return JsonResponse(list(data), safe=False)
+
+def heatmap_incidents_by_time_of_day(request):
+    data = Incident.objects.annotate(hour_of_day=ExtractHour('date_time')).values('hour_of_day').annotate(count=Count('id')).order_by('hour_of_day')
+    return JsonResponse(list(data), safe=False)
+
+def bubble_chart_incidents_by_location_severity(request):
+    data = Incident.objects.values('location__name', 'severity_level').annotate(count=Count('id')).order_by('location__name', 'severity_level')
+    return JsonResponse(list(data), safe=False)
+
+def line_chart_incident_trends(request):
+    end_date = datetime.now()
+    start_date = end_date - timedelta(days=365)
+    data = Incident.objects.filter(date_time__range=(start_date, end_date)).annotate(month=ExtractMonth('date_time')).values('month').annotate(count=Count('id')).order_by('month')
+    return JsonResponse(list(data), safe=False)

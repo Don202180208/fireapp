@@ -2,27 +2,38 @@ import os
 import django
 import random
 from faker import Faker
-from datetime import timezone
+from django.utils import timezone
 
-# Set up Django
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'projectsite.settings')  # Update 'your_project' with your project name
+# Set up Django settings module
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "projectsite.settings")
 django.setup()
 
-# Import models after setting up Django
+# Import your models
 from fire.models import Locations, Incident, FireStation, Firefighters, FireTruck, WeatherConditions
 
-# Create a Faker instance
-fake = Faker()
+# Create a Faker instance with Filipino locale
+fake = Faker('fil_PH')
 
 def generate_locations():
     for _ in range(10):
         Locations.objects.create(
-            name=fake.company(),
+            name=fake.street_name(),
             latitude=fake.latitude(),
             longitude=fake.longitude(),
             address=fake.address(),
             city=fake.city(),
-            country=fake.country()
+            country='Philippines'
+        )
+
+def generate_incidents():
+    locations = list(Locations.objects.all())
+    SEVERITY_CHOICES = ['Minor Fire', 'Moderate Fire', 'Major Fire']
+    for _ in range(30):
+        Incident.objects.create(
+            location=random.choice(locations),
+            date_time=fake.date_time_between(start_date="-1y", end_date="now", tzinfo=timezone.utc),
+            severity_level=random.choice(SEVERITY_CHOICES),
+            description=fake.text(max_nb_chars=250)
         )
 
 def generate_firestations():
@@ -33,7 +44,7 @@ def generate_firestations():
             longitude=fake.longitude(),
             address=fake.address(),
             city=fake.city(),
-            country=fake.country()
+            country='Philippines'
         )
 
 def generate_firefighters():
@@ -58,17 +69,6 @@ def generate_firetrucks():
             station=random.choice(firestations)
         )
 
-def generate_incidents():
-    locations = list(Locations.objects.all())
-    SEVERITY_CHOICES = ['Minor Fire', 'Moderate Fire', 'Major Fire']
-    for _ in range(30):
-        Incident.objects.create(
-            location=random.choice(locations),
-            date_time=fake.date_time_this_year(before_now=True, after_now=False, tzinfo=timezone.utc),
-            severity_level=random.choice(SEVERITY_CHOICES),
-            description=fake.text(max_nb_chars=250)
-        )
-
 def generate_weatherconditions():
     incidents = list(Incident.objects.all())
     for _ in range(30):
@@ -82,10 +82,10 @@ def generate_weatherconditions():
 
 # Call the functions to generate fake data
 generate_locations()
+generate_incidents()
 generate_firestations()
 generate_firefighters()
 generate_firetrucks()
-generate_incidents()
 generate_weatherconditions()
 
 print("Fake data generation completed.")

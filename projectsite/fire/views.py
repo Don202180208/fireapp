@@ -1,11 +1,12 @@
-from django.shortcuts import render
+from django.shortcuts import render, get_object_or_404, redirect
 from django.views.generic.list import ListView
 from fire.models import Locations, Incident, FireStation, WeatherConditions
 from django.db import connection
 from django.http import JsonResponse
-from django.db.models.functions import ExtractMonth, ExtractDay, ExtractHour
-from django.db.models import Count, F
+from django.db.models.functions import ExtractMonth, ExtractDay, ExtractHour, TruncMonth
+from django.db.models import Count, F, Avg
 from datetime import datetime, timedelta
+from forms import IncidentForm
 import json
 
 
@@ -24,33 +25,53 @@ class ChartView(ListView):
     def get_queryset(self, *args, **kwargs):
         pass
 
-def PieCountbySeverity(request):
-    data = Incident.objects.values('severity_level').annotate(count=Count('id')).order_by('severity_level')
-    return JsonResponse(list(data), safe=False)
-
-def LineCountbyMonth(request):
-    current_year = datetime.now().year
-    result = {month: 0 for month in range(1, 13)}
-    incidents_per_month = Incident.objects.filter(date_time__year=current_year) \
-        .values_list('date_time', flat=True)
+def pie_chart_incidents_by_severity(request):
+    data = Incident.objects.values('severity_level').annotate(count=Count('id'))
     
-    for date_time in incidents_per_month:
-        month = date_time.month
-        result[month] += 1
+    pie_chart_data = {
+        'labels': [entry['severity_level'] for entry in data],
+        'datasets': [{
+            'data': [entry['count'] for entry in data],
+            'backgroundColor': [
+                '#f3545d',  # Color for severity level 1
+                '#fdaf4b',  # Color for severity level 2
+                '#1d7af3',  # Color for severity level 3
+                '#1f9d55',  # Color for severity level 4
+                '#a55eea'   # Color for severity level 5
+            ]
+        }]
+    }
     
-    month_names = {
-        1: 'Jan', 2: 'Feb', 3: 'Mar', 4: 'Apr', 5: 'May', 6: 'Jun',
-        7: 'Jul', 8: 'Aug', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dec'
-    }
-    result_with_month_names = {
-        month_names[int(month)]: count for month, count in result.items()
-    }
-    return JsonResponse(result_with_month_names)
+    return JsonResponse(pie_chart_data)
 
-def MultilineIncidentTop3Country(request):
+def line_chart_incidents_over_time(request):
+    data = (Incident.objects
+            .annotate(month=TruncMonth('date_time'))
+            .values('month')
+            .annotate(count=Count('id'))
+            .order_by('month'))
+    
+    # Prepare the data for the chart
+    labels = [entry['month'].strftime('%Y-%m') for entry in data]
+    datasets = [{
+        'label': 'Number of Incidents',
+        'data': [entry['count'] for entry in data],
+        'backgroundColor': 'rgba(75, 192, 192, 0.2)',
+        'borderColor': 'rgba(75, 192, 192, 1)',
+        'fill': False,
+    }]
+
+    line_chart_data = {
+        'labels': labels,
+        'datasets': datasets
+    }
+
+    return JsonResponse(line_chart_data)
+
+def MultilineIncidentTop3City(request):
     query = '''
     SELECT
-        fl.country,
+        fl.city,
         strftime('%m', fi.date_time) AS month,
         COUNT(fi.id) AS incident_count
     FROM
@@ -58,26 +79,12 @@ def MultilineIncidentTop3Country(request):
     JOIN
         fire_locations fl ON fi.location_id = fl.id
     WHERE
-        fl.country IN (
-            SELECT
-                fl_top.country
-            FROM
-                fire_incident fi_top
-            JOIN
-                fire_locations fl_top ON fi_top.location_id = fl_top.id
-            WHERE
-                strftime('%Y', fi_top.date_time) = strftime('%Y', 'now')
-            GROUP BY
-                fl_top.country
-            ORDER BY
-                COUNT(fi_top.id) DESC
-            LIMIT 3
-        )
+        fl.country = 'Philippines'  -- Assuming all locations are in the Philippines
         AND strftime('%Y', fi.date_time) = strftime('%Y', 'now')
     GROUP BY
-        fl.country, month
+        fl.city, month
     ORDER BY
-        fl.country, month;
+        fl.city, month;
     '''
     with connection.cursor() as cursor:
         cursor.execute(query)
@@ -87,20 +94,20 @@ def MultilineIncidentTop3Country(request):
     months = set(str(i).zfill(2) for i in range(1, 13))
     
     for row in rows:
-        country = row[0]
+        city = row[0]
         month = row[1]
         total_incidents = row[2]
-        if country not in result:
-            result[country] = {month: 0 for month in months}
-        result[country][month] = total_incidents
+        if city not in result:
+            result[city] = {month: 0 for month in months}
+        result[city][month] = total_incidents
     
     while len(result) < 3:
-        missing_country = f"Country {len(result) + 1}"
-        result[missing_country] = {month: 0 for month in months}
-    for country in result:
-        result[country] = dict(sorted(result[country].items()))
+        missing_city = f"City {len(result) + 1}"
+        result[missing_city] = {month: 0 for month in months}
+    for city in result:
+        result[city] = dict(sorted(result[city].items()))
     return JsonResponse(result)
-
+    
 def multipleBarbySeverity(request):
     query = '''
     SELECT
@@ -115,17 +122,21 @@ def multipleBarbySeverity(request):
     with connection.cursor() as cursor:
         cursor.execute(query)
         rows = cursor.fetchall()
+
     result = {}
     months = set(str(i).zfill(2) for i in range(1, 13))
+    
     for row in rows:
-        level = str(row[0])
+        severity_level = str(row[0])
         month = row[1]
         total_incidents = row[2]
-        if level not in result:
-            result[level] = {month: 0 for month in months}
-        result[level][month] = total_incidents
-    for level in result:
-        result[level] = dict(sorted(result[level].items()))
+        if severity_level not in result:
+            result[severity_level] = {month: 0 for month in months}
+        result[severity_level][month] = total_incidents
+    
+    for severity_level in result:
+        result[severity_level] = dict(sorted(result[severity_level].items()))
+
     return JsonResponse(result)
 
 def map_station(request):
@@ -140,25 +151,151 @@ def map_station(request):
     }
     return render(request, 'map_station.html', context)
 
+def map_incident(request):
+    selected_city = request.GET.get('city')
+    if selected_city:
+        incidents = Incident.objects.filter(location__city=selected_city).values('id', 'description', 'severity_level', 'location__name', 'location__latitude', 'location__longitude')
+    else:
+        incidents = Incident.objects.values('id', 'description', 'severity_level', 'location__name', 'location__latitude', 'location__longitude')
+    
+    cities = Locations.objects.values_list('city', flat=True).distinct()
+    context = {
+        'incidents': list(incidents),
+        'cities': cities,
+        'selected_city': selected_city,
+    }
+    return render(request, 'map_incident.html', context)
+
+def create_incident(request):
+    if request.method == 'POST':
+        form = IncidentForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect('map-incident')
+    else:
+        form = IncidentForm()
+    return render(request, 'incident_form.html', {'form': form})
+
+def update_incident(request, id):
+    incident = get_object_or_404(Incident, id=id)
+    if request.method == 'POST':
+        form = IncidentForm(request.POST, instance=incident)
+        if form.is_valid():
+            form.save()
+            return redirect('map-incident')
+    else:
+        form = IncidentForm(instance=incident)
+    return render(request, 'incident_form.html', {'form': form})
+
+def delete_incident(request, id):
+    incident = get_object_or_404(Incident, id=id)
+    if request.method == 'POST':
+        incident.delete()
+        return redirect('map-incident')
+    return render(request, 'confirm_delete.html', {'incident': incident})
     
 def bar_chart_incidents_by_day(request):
     data = Incident.objects.annotate(day_of_week=ExtractDay('date_time')).values('day_of_week').annotate(count=Count('id')).order_by('day_of_week')
     return JsonResponse(list(data), safe=False)
 
 def doughnut_chart_incidents_by_type(request):
-    data = Incident.objects.values('severity_level').annotate(count=Count('id')).order_by('severity_level')
-    return JsonResponse(list(data), safe=False)
+    # Group incidents by severity_level and count them
+    data = Incident.objects.values('severity_level').annotate(count=Count('id'))
+    
+    chart_data = {
+        "labels": [entry['severity_level'] for entry in data],
+        "data": [entry['count'] for entry in data]
+    }
+    
+    return JsonResponse(chart_data)
+
+def radar_chart_weather_conditions(request):
+    weather_conditions = WeatherConditions.objects.all()
+    labels = [str(condition.incident.date_time) for condition in weather_conditions]
+    temperatures = [float(condition.temperature) for condition in weather_conditions]
+    humidities = [float(condition.humidity) for condition in weather_conditions]
+    wind_speeds = [float(condition.wind_speed) for condition in weather_conditions]
+
+    radar_data = {
+        'labels': labels,
+        'datasets': [
+            {
+                'label': 'Temperature',
+                'data': temperatures,
+                'backgroundColor': 'rgba(255, 99, 132, 0.2)',
+                'borderColor': 'rgba(255, 99, 132, 1)',
+                'pointBackgroundColor': 'rgba(255, 99, 132, 1)',
+                'pointBorderColor': '#fff',
+                'pointHoverBackgroundColor': '#fff',
+                'pointHoverBorderColor': 'rgba(255, 99, 132, 1)',
+            },
+            {
+                'label': 'Humidity',
+                'data': humidities,
+                'backgroundColor': 'rgba(54, 162, 235, 0.2)',
+                'borderColor': 'rgba(54, 162, 235, 1)',
+                'pointBackgroundColor': 'rgba(54, 162, 235, 1)',
+                'pointBorderColor': '#fff',
+                'pointHoverBackgroundColor': '#fff',
+                'pointHoverBorderColor': 'rgba(54, 162, 235, 1)',
+            },
+            {
+                'label': 'Wind Speed',
+                'data': wind_speeds,
+                'backgroundColor': 'rgba(255, 206, 86, 0.2)',
+                'borderColor': 'rgba(255, 206, 86, 1)',
+                'pointBackgroundColor': 'rgba(255, 206, 86, 1)',
+                'pointBorderColor': '#fff',
+                'pointHoverBackgroundColor': '#fff',
+                'pointHoverBorderColor': 'rgba(255, 206, 86, 1)',
+            },
+        ]
+    }
+
+    return JsonResponse(radar_data)
 
 def heatmap_incidents_by_time_of_day(request):
     data = Incident.objects.annotate(hour_of_day=ExtractHour('date_time')).values('hour_of_day').annotate(count=Count('id')).order_by('hour_of_day')
     return JsonResponse(list(data), safe=False)
 
-def bubble_chart_incidents_by_location_severity(request):
-    data = Incident.objects.values('location__name', 'severity_level').annotate(count=Count('id')).order_by('location__name', 'severity_level')
-    return JsonResponse(list(data), safe=False)
+def bubble_chart_weather_conditions(request):
+    data = Incident.objects.values('severity_level').annotate(
+        avg_temperature=Avg('weatherconditions__temperature'),
+        avg_humidity=Avg('weatherconditions__humidity'),
+        avg_wind_speed=Avg('weatherconditions__wind_speed')
+    )
+
+    bubble_chart_data = []
+    severity_colors = {
+        'Low': 'rgba(54, 162, 235, 0.6)',
+        'Moderate': 'rgba(255, 206, 86, 0.6)',
+        'High': 'rgba(255, 99, 132, 0.6)'
+    }
+
+    for entry in data:
+        severity = entry['severity_level']
+        bubble_chart_data.append({
+            'label': severity,
+            'temperature': entry['avg_temperature'],
+            'humidity': entry['avg_humidity'],
+            'wind_speed': entry['avg_wind_speed'],
+            'backgroundColor': severity_colors.get(severity, 'rgba(75, 192, 192, 0.6)')
+        })
+
+    return JsonResponse(bubble_chart_data, safe=False)
 
 def line_chart_incident_trends(request):
     end_date = datetime.now()
     start_date = end_date - timedelta(days=365)
     data = Incident.objects.filter(date_time__range=(start_date, end_date)).annotate(month=ExtractMonth('date_time')).values('month').annotate(count=Count('id')).order_by('month')
     return JsonResponse(list(data), safe=False)
+
+def dashboard(request):
+    # Retrieve data for the new charts
+    # Example: Retrieve fire incidents and severity levels
+    fire_incidents = Incident.objects.all()
+    # Pass data to the template
+    context = {
+        'fire_incidents': fire_incidents,
+    }
+    return render(request, 'chart.html', context)

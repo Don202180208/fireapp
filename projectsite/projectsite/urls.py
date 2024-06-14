@@ -5,7 +5,11 @@ from fire.views import (
     MultilineIncidentTop3City, multipleBarbySeverity, map_station, map_incident, create_incident, update_incident, delete_incident,
     bar_chart_incidents_by_day, doughnut_chart_incidents_by_type, 
     heatmap_incidents_by_time_of_day, bubble_chart_weather_conditions, 
-    line_chart_incident_trends, radar_chart_weather_conditions
+    line_chart_incident_trends, radar_chart_weather_conditions, create_station, update_station, delete_station,
+    list_locations, create_location, update_location, delete_location,
+    list_firefighters, create_firefighter, update_firefighter, delete_firefighter,
+    list_firetrucks, create_firetruck, update_firetruck, delete_firetruck,
+    list_weather_conditions, create_weather_condition, update_weather_condition, delete_weather_condition
 )
 
 urlpatterns = [
@@ -17,6 +21,9 @@ urlpatterns = [
     path('multiline-chart/', MultilineIncidentTop3City, name='multiline-chart'),
     path('multiple-bar-severity/', multipleBarbySeverity, name='multiple-bar-severity'),
     path('map_station/', map_station, name='map-station'),
+    path('create_station/', create_station, name='create_station'),
+    path('update_station/<int:station_id>/', update_station, name='update_station'),
+    path('delete_station/<int:station_id>/', delete_station, name='delete_station'),
     path('map_incident/', map_incident, name='map-incident'),
     path('create_incident/', create_incident, name='create-incident'),
     path('update_incident/<int:id>/', update_incident, name='update-incident'),
@@ -27,4 +34,20 @@ urlpatterns = [
     path('heatmap-incidents-by-time-of-day/', heatmap_incidents_by_time_of_day, name='heatmap-incidents-by-time-of-day'),
     path('bubble_chart_weather_conditions/', bubble_chart_weather_conditions, name='bubble_chart_weather_conditions'),
     path('line-chart-incident-trends/', line_chart_incident_trends, name='line-chart-incident-trends'),
+    path('locations/', list_locations, name='list_locations'),
+    path('locations/create/', create_location, name='create_location'),
+    path('locations/update/<int:location_id>/', update_location, name='update_location'),
+    path('locations/delete/<int:location_id>/', delete_location, name='delete_location'),
+    path('firefighters/', list_firefighters, name='list_firefighters'),
+    path('firefighters/create/', create_firefighter, name='create_firefighter'),
+    path('firefighters/update/<int:firefighter_id>/', update_firefighter, name='update_firefighter'),
+    path('firefighters/delete/<int:firefighter_id>/', delete_firefighter, name='delete_firefighter'),
+    path('firetrucks/', list_firetrucks, name='list_firetrucks'),
+    path('firetrucks/create/', create_firetruck, name='create_firetruck'),
+    path('firetrucks/update/<int:firetruck_id>/', update_firetruck, name='update_firetruck'),
+    path('firetrucks/delete/<int:firetruck_id>/', delete_firetruck, name='delete_firetruck'),
+    path('weather_conditions/', list_weather_conditions, name='list_weather_conditions'),
+    path('weather_conditions/create/', create_weather_condition, name='create_weather_condition'),
+    path('weather_conditions/update/<int:weather_condition_id>/', update_weather_condition, name='update_weather_condition'),
+    path('weather_conditions/delete/<int:weather_condition_id>/', delete_weather_condition, name='delete_weather_condition'),
 ]

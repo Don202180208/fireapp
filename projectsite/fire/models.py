@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils import timezone
 
 
 class BaseModel(models.Model):
@@ -40,13 +41,12 @@ class Incident(BaseModel):
 
 class FireStation(BaseModel):
     name = models.CharField(max_length=150)
-    latitude = models.DecimalField(
-        max_digits=22, decimal_places=16, null=True, blank=True)
-    longitude = models.DecimalField(
-        max_digits=22, decimal_places=16, null=True, blank=True)
+    latitude = models.DecimalField(max_digits=22, decimal_places=16, null=True, blank=True)
+    longitude = models.DecimalField(max_digits=22, decimal_places=16, null=True, blank=True)
     address = models.CharField(max_length=150)
     city = models.CharField(max_length=150)  # can be in separate table
     country = models.CharField(max_length=150)  # can be in separate table
+    created_at = models.DateTimeField(default=timezone.now, blank=True)  # Add this line
 
     def __str__(self):
         return self.name

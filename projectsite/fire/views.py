@@ -1,12 +1,12 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.views.generic.list import ListView
-from fire.models import Locations, Incident, FireStation, WeatherConditions
+from fire.models import Locations, Incident, FireStation, WeatherConditions, Firefighters, FireTruck
 from django.db import connection
 from django.http import JsonResponse
 from django.db.models.functions import ExtractMonth, ExtractDay, ExtractHour, TruncMonth
 from django.db.models import Count, F, Avg
 from datetime import datetime, timedelta
-from forms import IncidentForm
+from forms import IncidentForm, FireStationForm,LocationsForm, FirefightersForm, FireTruckForm, WeatherConditionsForm
 import json
 
 
@@ -140,7 +140,7 @@ def multipleBarbySeverity(request):
     return JsonResponse(result)
 
 def map_station(request):
-    fireStations = FireStation.objects.values('name', 'latitude', 'longitude')
+    fireStations = FireStation.objects.all().values('id', 'name', 'latitude', 'longitude', 'address', 'city', 'country')
     for fs in fireStations:
         fs['latitude'] = float(fs['latitude'])
         fs['longitude'] = float(fs['longitude'])
@@ -151,17 +151,77 @@ def map_station(request):
     }
     return render(request, 'map_station.html', context)
 
+def create_station(request):
+    if request.method == 'POST':
+        form = FireStationForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect('map_station')
+    else:
+        form = FireStationForm()
+
+    context = {
+        'form': form,
+    }
+    return render(request, 'create_station.html', context)
+
+def update_station(request, station_id):
+    station = get_object_or_404(FireStation, pk=station_id)
+    if request.method == 'POST':
+        form = FireStationForm(request.POST, instance=station)
+        if form.is_valid():
+            form.save()
+            return redirect('map_station')
+    else:
+        form = FireStationForm(instance=station)
+
+    context = {
+        'form': form,
+        'station': station,
+    }
+    return render(request, 'update_station.html', context)
+
+def delete_station(request, station_id):
+    station = get_object_or_404(FireStation, id=station_id)
+    if request.method == 'POST':
+        station.delete()
+        return redirect('map_station')
+
+    context = {
+        'station': station,
+    }
+    return render(request, 'delete_station.html', context)
+
+# views.py
 def map_incident(request):
     selected_city = request.GET.get('city')
     if selected_city:
-        incidents = Incident.objects.filter(location__city=selected_city).values('id', 'description', 'severity_level', 'location__name', 'location__latitude', 'location__longitude')
+        incidents = Incident.objects.filter(location__country='Philippines', location__city=selected_city).values(
+            'id', 'description', 'severity_level', 'location__name', 'location__latitude', 'location__longitude'
+        )
     else:
-        incidents = Incident.objects.values('id', 'description', 'severity_level', 'location__name', 'location__latitude', 'location__longitude')
-    
-    cities = Locations.objects.values_list('city', flat=True).distinct()
+        incidents = Incident.objects.filter(location__country='Philippines').values(
+            'id', 'description', 'severity_level', 'location__name', 'location__latitude', 'location__longitude'
+        )
+
+    # Convert Decimal values to floats
+    incidents = [
+        {
+            **incident,
+            'location__latitude': float(incident['location__latitude']),
+            'location__longitude': float(incident['location__longitude'])
+        }
+        for incident in incidents
+    ]
+
+    # Debugging: Print incidents to the console
+    for incident in incidents:
+        print(f"Incident: {incident}")
+
+    cities = Locations.objects.filter(country='Philippines').values_list('city', flat=True).distinct()
     context = {
-        'incidents': list(incidents),
-        'cities': cities,
+        'incidents': incidents,
+        'cities': list(cities),
         'selected_city': selected_city,
     }
     return render(request, 'map_incident.html', context)
@@ -299,3 +359,131 @@ def dashboard(request):
         'fire_incidents': fire_incidents,
     }
     return render(request, 'chart.html', context)
+
+def list_locations(request):
+    locations = Locations.objects.all()
+    return render(request, 'list_locations.html', {'locations': locations})
+
+def create_location(request):
+    if request.method == 'POST':
+        form = LocationsForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect('list_locations')
+    else:
+        form = LocationsForm()
+    return render(request, 'create_location.html', {'form': form})
+
+def update_location(request, location_id):
+    location = get_object_or_404(Locations, id=location_id)
+    if request.method == 'POST':
+        form = LocationsForm(request.POST, instance=location)
+        if form.is_valid():
+            form.save()
+            return redirect('list_locations')
+    else:
+        form = LocationsForm(instance=location)
+    return render(request, 'update_location.html', {'form': form, 'location': location})
+
+def delete_location(request, location_id):
+    location = get_object_or_404(Locations, id=location_id)
+    if request.method == 'POST':
+        location.delete()
+        return redirect('list_locations')
+    return render(request, 'delete_location.html', {'location': location})
+
+def list_firefighters(request):
+    firefighters = Firefighters.objects.all()
+    return render(request, 'list_firefighters.html', {'firefighters': firefighters})
+
+def create_firefighter(request):
+    if request.method == 'POST':
+        form = FirefightersForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect('list_firefighters')
+    else:
+        form = FirefightersForm()
+    return render(request, 'create_firefighter.html', {'form': form})
+
+def update_firefighter(request, firefighter_id):
+    firefighter = get_object_or_404(Firefighters, id=firefighter_id)
+    if request.method == 'POST':
+        form = FirefightersForm(request.POST, instance=firefighter)
+        if form.is_valid():
+            form.save()
+            return redirect('list_firefighters')
+    else:
+        form = FirefightersForm(instance=firefighter)
+    return render(request, 'update_firefighter.html', {'form': form, 'firefighter': firefighter})
+
+def delete_firefighter(request, firefighter_id):
+    firefighter = get_object_or_404(Firefighters, id=firefighter_id)
+    if request.method == 'POST':
+        firefighter.delete()
+        return redirect('list_firefighters')
+    return render(request, 'delete_firefighter.html', {'firefighter': firefighter})
+
+def list_firetrucks(request):
+    firetrucks = FireTruck.objects.all()
+    return render(request, 'list_firetrucks.html', {'firetrucks': firetrucks})
+
+def create_firetruck(request):
+    if request.method == 'POST':
+        form = FireTruckForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect('list_firetrucks')
+    else:
+        form = FireTruckForm()
+    return render(request, 'create_firetruck.html', {'form': form})
+
+def update_firetruck(request, firetruck_id):
+    firetruck = get_object_or_404(FireTruck, id=firetruck_id)
+    if request.method == 'POST':
+        form = FireTruckForm(request.POST, instance=firetruck)
+        if form.is_valid():
+            form.save()
+            return redirect('list_firetrucks')
+    else:
+        form = FireTruckForm(instance=firetruck)
+    return render(request, 'update_firetruck.html', {'form': form, 'firetruck': firetruck})
+
+def delete_firetruck(request, firetruck_id):
+    firetruck = get_object_or_404(FireTruck, id=firetruck_id)
+    if request.method == 'POST':
+        firetruck.delete()
+        return redirect('list_firetrucks')
+    return render(request, 'delete_firetruck.html', {'firetruck': firetruck})
+
+def list_weather_conditions(request):
+    weather_conditions = WeatherConditions.objects.all()
+    return render(request, 'list_weather_conditions.html', {'weather_conditions': weather_conditions})
+
+def create_weather_condition(request):
+    if request.method == 'POST':
+        form = WeatherConditionsForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect('list_weather_conditions')
+    else:
+        form = WeatherConditionsForm()
+    return render(request, 'create_weather_condition.html', {'form': form})
+
+def update_weather_condition(request, weather_condition_id):
+    weather_condition = get_object_or_404(WeatherConditions, id=weather_condition_id)
+    if request.method == 'POST':
+        form = WeatherConditionsForm(request.POST, instance=weather_condition)
+        if form.is_valid():
+            form.save()
+            return redirect('list_weather_conditions')
+    else:
+        form = WeatherConditionsForm(instance=weather_condition)
+    return render(request, 'update_weather_condition.html', {'form': form, 'weather_condition': weather_condition})
+
+def delete_weather_condition(request, weather_condition_id):
+    weather_condition = get_object_or_404(WeatherConditions, id=weather_condition_id)
+    if request.method == 'POST':
+        weather_condition.delete()
+        return redirect('list_weather_conditions')
+    return render(request, 'delete_weather_condition.html', {'weather_condition': weather_condition})

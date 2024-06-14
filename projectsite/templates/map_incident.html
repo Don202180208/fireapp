@@ -77,7 +77,7 @@
       <td>{{ incident.id }}</td>
       <td>{{ incident.description }}</td>
       <td>{{ incident.severity_level }}</td>
-      <td>{{ incident.location.name }}</td>
+      <td>{{ incident.location__name }}</td>
       <td>
         <a href="{% url 'update-incident' incident.id %}" class="btn btn-info btn-sm">Edit</a>
         <a href="{% url 'delete-incident' incident.id %}" class="btn btn-danger btn-sm">Delete</a>
@@ -89,21 +89,29 @@
 
 <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
 <script>
-  var map = L.map('map').setView([9.81644, 118.72239], 13);
+  var fireIcon = L.icon({
+    iconUrl: "{% static 'img/fire.png' %}",
+    iconSize: [32, 32], // size of the icon
+    iconAnchor: [16, 32], // point of the icon which will correspond to marker's location
+    popupAnchor: [0, -32] // point from which the popup should open relative to the iconAnchor
+  });
+
+  var map = L.map('map');
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
   }).addTo(map);
 
   var markerData = {{ incidents|safe }};
+  var bounds = [];
 
   markerData.forEach(function(data) {
-    var latitude = parseFloat(data.latitude);
-    var longitude = parseFloat(data.longitude);
-    
-    var marker = L.marker([latitude, longitude]).addTo(map);
+    var latitude = parseFloat(data.location__latitude);
+    var longitude = parseFloat(data.location__longitude);
 
-    var popupContent = data.description;
+    var marker = L.marker([latitude, longitude], {icon: fireIcon}).addTo(map);
+
+    var popupContent = `<b>${data.description}</b><br>Severity Level: ${data.severity_level}`;
     marker.bindPopup(popupContent);
 
     marker.on('mouseover', function(e) {
@@ -113,6 +121,14 @@
     marker.on('mouseout', function(e) {
       this.closePopup();
     });
+
+    bounds.push([latitude, longitude]);
   });
+
+  if (bounds.length > 0) {
+    map.fitBounds(bounds);
+  } else {
+    map.setView([12.8797, 121.7740], 6); // Default to the Philippines if no data
+  }
 </script>
 {% endblock %}

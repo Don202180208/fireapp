@@ -5,7 +5,7 @@
 
 <div class="page-inner">
   <div class="page-header">
-    <h4 class="page-title">Dashboard</h4>
+    <h4 class="page-title">Fire Stations</h4>
     <ul class="breadcrumbs">
       <li class="nav-home">
         <a href="#">
@@ -26,19 +26,47 @@
       </li>
     </ul>
   </div>
+  <div class="row mb-3">
+    <div class="col-md-12 text-right">
+      <a href="{% url 'create_station' %}" class="btn btn-primary">Add New Station</a>
+    </div>
+  </div>
   <div class="row">
     <div class="col-md-12">
       <div class="card card-transparent">
-        <div class="card-header">
-          <h4 class="card-title text-center">Fire Stations</h4>
-          <p class="card-category text-center">Looks great on any resolution. Made by our friends from <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>.</p>
-        </div>
         <div class="card-body">
-          <div class="col-md-10 ml-auto mr-auto">
-            <div id="map" style="width: 100%; height: 400px"></div>
-          </div>
+          <div id="map" style="width: 100%; height: 400px"></div>
         </div>
       </div>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-12">
+      <table class="table table-striped">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Address</th>
+            <th>City</th>
+            <th>Country</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for station in fireStations %}
+            <tr>
+              <td>{{ station.name }}</td>
+              <td>{{ station.address }}</td>
+              <td>{{ station.city }}</td>
+              <td>{{ station.country }}</td>
+              <td>
+                <a href="{% url 'update_station' station.id %}" class="btn btn-warning">Edit</a>
+                <a href="{% url 'delete_station' station.id %}" class="btn btn-danger">Delete</a>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
   </div>
 </div>

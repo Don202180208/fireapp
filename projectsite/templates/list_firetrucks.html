@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Fire Trucks</h2>
+<a href="{% url 'create_firetruck' %}" class="btn btn-primary">Add New Fire Truck</a>
+<table class="table">
+  <thead>
+    <tr>
+      <th>Truck Number</th>
+      <th>Model</th>
+      <th>Capacity</th>
+      <th>Station</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for firetruck in firetrucks %}
+      <tr>
+        <td>{{ firetruck.truck_number }}</td>
+        <td>{{ firetruck.model }}</td>
+        <td>{{ firetruck.capacity }}</td>
+        <td>{{ firetruck.station.name }}</td>
+        <td>
+          <a href="{% url 'update_firetruck' firetruck.id %}" class="btn btn-warning">Edit</a>
+          <a href="{% url 'delete_firetruck' firetruck.id %}" class="btn btn-danger">Delete</a>
+        </td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
